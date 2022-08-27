@@ -1,64 +1,57 @@
-// Wymagane biblioteki
-
-#include <OneWire.h>                                                                       
+//Biblioteki
 #include <Arduino.h>
 #include <SPI.h>
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <BMP280_DEV.h>                         
+#include <Adafruit_SGP30.h>
 
-// Pin pomiarowy baterii
+// Piny do BSM baterii
+const int analogInPin = A0;
+#define BATTERY 2
+#define BATTERY_CHARGE 16
 
-#define BATERIA 3
 
 // Piny przycisków
+#define RIGHT_B 12  // przycisk do poruszania menu w prawo
+#define LEFT_B 13     // przycisk do poruszania menu w lewo
+#define OK_B 14       // przycisk OK do egzekucji danej pozycji menu
+#define CANCEL_B 15   // przycisk powrotu do poprzedniej wartości menu lub wyjścia z dajego polecenia
 
-#define PRAWO 7    // przycisk do poruszania menu w prawo
-#define LEWO 6     // przycisk do poruszania menu w lewo
-#define OK 8       // przycisk OK do egzekucji danej pozycji menu
-#define ANULUJ 5   // przycisk powrotu do poprzedniej wartości menu lub wyjścia z dajego polecenia
+// Kontruktor obiektów
+U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2_S(U8G2_R0); // I2C 0x3C
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_L(U8G2_R2); // I2C 0x3D
+BMP280_DEV bmp280; // I2C 0x77                                
+Adafruit_SGP30 sgp; // I2C 0x??
 
-// Konstruktor wyświetlacza
+// Zmienne pomiarowe
+float temperature, pressure, altitude; // BSP280
+int tvoc, eCO2; // SGP30
+int battery_voltage; // Do BMS
+int wynik;
 
-U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0); // I2C device found at address 0x3C dla czarnego 0.96 cala oraz czerwonego 0.96 cala
-
-// Stałe do pomiarów
-const int Ro = 16000; //Ro zmienna rezystancji dla czystego powietrza gdy f(PomiarTemp) = 1
-const int RL = 8900; //Rezystor podpiętu między masą a pinem 2 czujnika Figaro
-
-// Zmienne do pomiarów
-float RS;
-float VRL;
-float currentTemp;
-float PomiarTemp;
-float wynik;
-float napieciePomiarowe;
-float napiecieWynikowe;
+byte idPomiaru = 0;
 
 int stanBaterii = 5;
 byte bateriaDelay = 0;
 int pomiarBaterii = 0;
 int stanTemp = 0;
+int stanCount = 0;
 
-// Zmienne do wyświetlania
-
-float minVal;
-float maxVal;
-float v;
-
+// Zmienne wyświetlacza
+float minVal, maxVal, v;
 float punkt;
-byte xp;
-byte yp;
+String nazwaPomiaru;
 
 // Rozmiary dla obrazków
-
 #define meatCheckW 54
 #define meatCheckH 44
 #define logo60 60
 #define ikona12 12
 #define exW 70
 #define exH 48
-#define bateriaW 14
-#define bateriaH 6
+#define bateriaW 28
+#define bateriaH 18
 #define navIkonaW 9
 #define navIkonaH 6
 #define OPDProz 56
@@ -253,7 +246,12 @@ static const unsigned char OPDP[] U8X8_PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, };
 
 static const unsigned char bateria[] U8X8_PROGMEM = {
-  0xFE, 0x3F, 0x03, 0x20, 0x03, 0x20, 0x03, 0x20, 0x03, 0x20, 0xFE, 0x3F, 
+  0xF8, 0xFF, 0xFF, 0x07, 0xFC, 0xFF, 0xFF, 0x0F, 0x0C, 0x00, 0x00, 0x0C, 
+  0x0C, 0x00, 0x00, 0x0C, 0x0C, 0x00, 0x00, 0x0C, 0x0C, 0x00, 0x00, 0x0C, 
+  0x0F, 0x00, 0x00, 0x0C, 0x0F, 0x00, 0x00, 0x0C, 0x0F, 0x00, 0x00, 0x0C, 
+  0x0F, 0x00, 0x00, 0x0C, 0x0F, 0x00, 0x00, 0x0C, 0x0F, 0x00, 0x00, 0x0C, 
+  0x0C, 0x00, 0x00, 0x0C, 0x0C, 0x00, 0x00, 0x0C, 0x0C, 0x00, 0x00, 0x0C, 
+  0x0C, 0x00, 0x00, 0x0C, 0xFC, 0xFF, 0xFF, 0x0F, 0xF8, 0xFF, 0xFF, 0x07, 
   };
 
 static const unsigned char mieso[] U8X8_PROGMEM = {
@@ -311,20 +309,25 @@ const char menu2_3[] PROGMEM = "Wołowina";
 const char menu2_4[] PROGMEM = "Wieprzowina";
 const char menu2_5[] PROGMEM = "Ryba";
 
+const char menu3_1[] PROGMEM = "Serwer WiFi";
+const char menu3_2[] PROGMEM = "Debugowanie";
+
 const char menu1[] PROGMEM = "Pomiar na żywo";
 const char menu2[] PROGMEM = "Wybór mięs";
-const char menu3[] PROGMEM = "Wyłącz urządzenie";
+const char menu3[] PROGMEM = "Ustawienia";
+const char menu4[] PROGMEM = "Wyłącz urządzenie";
 
 // Lista pozycji menu ułożona zgodnie z indeksami
 
 const char *const listaMenu[] PROGMEM = {
-  menu1, menu2, menu3,
+  menu1, menu2, menu3, menu4,
     menu2_1, menu2_2, menu2_3, menu2_4, menu2_5,
       menu2_1_1, menu2_1_2, menu2_1_3, menu2_1_4,
       menu2_2_1, menu2_2_2, menu2_2_3,
       menu2_3_1, menu2_3_2, menu2_3_3, menu2_3_4,
       menu2_4_1, menu2_4_2, menu2_4_3, menu2_4_4, menu2_4_5,
-      menu2_5_1, menu2_5_2, menu2_5_3
+      menu2_5_1, menu2_5_2, menu2_5_3,
+    menu3_1, menu3_2
 };
 
 // Lista każdego subemu drzewa
@@ -332,18 +335,19 @@ const char *const listaMenu[] PROGMEM = {
 const char *const listaSubmenu[] PROGMEM = {
   menu0,
     menu2,
-      menu2_1, menu2_2, menu2_3, menu2_4, menu2_5
+      menu2_1, menu2_2, menu2_3, menu2_4, menu2_5,
+    menu3  
 };
 
 
 // Dla szybszego wykonywania programu i uniknięcia błędów stałe rozmiarów menu są zapisane w pamięci SRAM
 
 const int indeksy[20] = {
-  0, 3, 8, 12, 15, 19, 24 
+  0, 4, 9, 13, 16, 20, 25, 28 
 };
 
 const int rozmiary[20] = {
-  3, 5, 4, 3, 4, 5, 3
+  4, 5, 4, 3, 4, 5, 3, 2
 };
 
 
@@ -373,8 +377,8 @@ bool wylacznik;
 
 int pozycja(int stanObecny, int indeks, int rozmiar){
   
-  if (digitalRead(PRAWO) == HIGH){
-    inputDelay = PRAWO; 
+  if (digitalRead(RIGHT_B) == LOW){
+    inputDelay = RIGHT_B; 
     if (stanObecny >= indeks + rozmiar - 1){
       return indeks;
     }
@@ -383,8 +387,8 @@ int pozycja(int stanObecny, int indeks, int rozmiar){
       return stanObecny;
     }
   }
-  if (digitalRead(LEWO) == HIGH){
-    inputDelay = LEWO;
+  if (digitalRead(LEFT_B) == LOW){
+    inputDelay = LEFT_B;
     if (stanObecny <= indeks){
        return indeks + rozmiar - 1;
     }
@@ -396,17 +400,17 @@ int pozycja(int stanObecny, int indeks, int rozmiar){
   return(stanObecny);
 }
 
-// Zwracanie czy została naciśnięta opcja nawigacji w menu, cyfry oznaczają wykonywaną funkcję
+
 
 int menuNawigacja(){
   
-  if (digitalRead(OK) == HIGH){
-      inputDelay = OK; 
+  if (digitalRead(OK_B) == LOW){
+      inputDelay = OK_B; 
       return 1;
   }
     
-  if (digitalRead(ANULUJ) == HIGH){
-    inputDelay = ANULUJ;
+  if (digitalRead(CANCEL_B) == HIGH){
+    inputDelay = CANCEL_B;
     if (poziom1 == -1){  
       return 0;
     }else if (poziom2 == -1){
@@ -443,77 +447,67 @@ void nawigacjaSubmenu(int temp){
 char buffer[22];
 
 char* printStringow(byte id){
-  strcpy_P(buffer, (char *)pgm_read_word(&(listaMenu[id])));
+  strcpy_P(buffer, (char *)pgm_read_dword(&(listaMenu[id])));
   return buffer;
 }
 
 char* printNazwyMenu(byte id){
-  strcpy_P(buffer, (char *)pgm_read_word(&(listaSubmenu[id])));
+  strcpy_P(buffer, (char *)pgm_read_dword(&(listaSubmenu[id])));
   return buffer;
 }
+
+
 
 // Skrypt aktywujący dane polecenie zgodnie z listą
 
 void aktywacjaSkryptu(int id){
   switch(id){
     case 0:
-      while (digitalRead(ANULUJ) == LOW){
-        rysunek(0);
+      minVal = 50;
+      maxVal = 1050;
+      nazwaPomiaru = "Na żywo";
+      while (digitalRead(CANCEL_B) == LOW){
+        rysunekPomiaru();
       }
-      while (digitalRead(ANULUJ) == HIGH){}
       delay(50);
       break;        
     case 1:
       nawigacjaSubmenu(1);
       break;      
     case 2:
-      while (digitalRead(OK) == HIGH){
-        rysunek(1);
+      nawigacjaSubmenu(7);
+      break; 
+    case 3:
+      while (digitalRead(OK_B) == LOW){
+        rysunekWylacznika();
       }
       wylacznik = false;
-      while (digitalRead(ANULUJ) == LOW){
-        rysunek(1);
-        if (digitalRead(OK) == HIGH){
+      while (digitalRead(CANCEL_B) == LOW){
+        rysunekWylacznika();
+        if (digitalRead(OK_B) == LOW){
           break;
         }
       }
-      if (wylacznik == true and digitalRead(OK) == HIGH){
-        wylaczanie();
+      if (wylacznik == true and digitalRead(OK_B) == LOW){
+        wylaczanie(0);
       }
-      while (digitalRead(ANULUJ) == HIGH or digitalRead(OK) == HIGH){}
+      while (digitalRead(CANCEL_B) == HIGH or digitalRead(OK_B) == LOW){}
       break;  
-    case 3:
+    case 4:
       nawigacjaSubmenu(2);
       break;      
-    case 4:
+    case 5:
       nawigacjaSubmenu(3);
       break;      
-    case 5:
+    case 6:
       nawigacjaSubmenu(4);
       break;      
-    case 6:
+    case 7:
       nawigacjaSubmenu(5);
       break;
-    case 7:
+    case 8:
       nawigacjaSubmenu(6);
       break;
-    case 8:
-       while (digitalRead(ANULUJ) == LOW){
-         pomiar(0);
-         u8g2.firstPage();
-         do{
-          u8g2.drawStr(20, 10, String(VRL).c_str());
-          u8g2.drawStr(20, 20, String(PomiarTemp).c_str());
-          u8g2.drawStr(75, 20, String(currentTemp).c_str());
-          u8g2.drawStr(20, 30, String(napiecieWynikowe).c_str());
-          u8g2.drawStr(75, 30, String(napieciePomiarowe).c_str());
-          u8g2.drawStr(20, 40, String(RS).c_str());
-          u8g2.drawStr(20, 50, String(wynik).c_str());
-
-         } while ( u8g2.nextPage() );
-         delay(20);
-       }
-       break;
     case 9:
        break;
     case 10:
@@ -550,59 +544,64 @@ void aktywacjaSkryptu(int id){
       break;
     case 26:
       break;
+    case 27:
+      break;
+    case 28:
+      break;  
+    case 29:
+      u8g2_L.clearBuffer();
+      u8g2_L.sendBuffer();
+      int temp = 0;
+      while (digitalRead(CANCEL_B) == LOW){
+        if (temp < 40){
+          temp++;
+          delay(1);
+        }
+        else{
+          temperatura();
+          rysunekGorny(0);
+          u8g2_L.clearBuffer();
+          u8g2_L.drawButtonUTF8(0, 12, U8G2_BTN_BW0, 0,  1,  1, "TVOC:");
+          u8g2_L.drawButtonUTF8(85, 12, U8G2_BTN_BW0, 0,  1,  1, String(pomiar()).c_str());
+          u8g2_L.drawButtonUTF8(0, 24, U8G2_BTN_BW0, 0,  1,  1, "Baterry:");
+          u8g2_L.drawButtonUTF8(85, 24, U8G2_BTN_BW0, 0,  1,  1, String(pomiarNapieciaBaterii()).c_str());
+//          u8g2_L.drawButtonUTF8(0, 36, U8G2_BTN_BW0, 0,  1,  1, "Temp.:");
+//          u8g2_L.drawButtonUTF8(85, 36, U8G2_BTN_BW0, 0,  1,  1, String(temperature).c_str());
+          u8g2_L.sendBuffer();
+          
+        }
+      }
+      break;
   }
 }
+
+
 
 // FUNKCJE POMIAROWE
 
 // Funkcja pomiaru napięcia baterii dla pomiaru czujnika oraz wydajności samej baterii
 
 int pomiarNapieciaBaterii(){
-  return analogRead(A2);
+  return analogRead(analogInPin);
 }
 
 // Funkcja pomiaru temperatury
-int16_t temperatura(int x ,byte start){
-    OneWire ds(x);
-    byte i;
-    byte data[2];
-    int16_t result;
-    do{
-        ds.reset();
-        ds.write(0xCC);
-        ds.write(0xBE);
-        for (int i = 0; i < 2; i++) data[i] = ds.read();
-        result=(data[1]<<8) |data[0];
-        result >>= 4; if (data[1]&128) result |=61440;
-        if (data[0]&8) ++result;
-        ds.reset();
-        ds.write(0xCC);
-        ds.write(0x44, 1);
-        if (start) delay(1000);
-    } while (start--);
-    delay(20);
-    return result;
+void temperatura(){
+  bmp280.startForcedConversion(); 
+  bmp280.getMeasurements(temperature, pressure, altitude);
+  return;
 }
 
-// Funkcja pomiaru charakterystyk dla gnijącego mięsa
 
-float pomiar(int idPomiaru) {
-  currentTemp = temperatura(10,0);
-  PomiarTemp = ((0.001*pow(currentTemp, 2))/0.7 * (-((0.006*currentTemp)+0.1))+1.1);
-  VRL = 0;
-    for (int temp = 0; temp < 10; temp++){
-      VRL += (analogRead(A0) / 1024.0) * 5.0;
-      delay(1);
-    }
-  VRL = VRL / 10.0;
-  RS = ((5.00-VRL)/VRL) * RL;
-  
-  napiecieWynikowe = pomiarNapieciaBaterii()/1024.0*5.0;
-  napieciePomiarowe = pow((napiecieWynikowe - 2.95), 0.6);
-  
+
+int pomiar() {
+//  temperatura();
+  sgp.IAQmeasure();
+  tvoc =  sgp.TVOC;
+  eCO2 = sgp.eCO2;
   switch (idPomiaru){
     case 0:
-      wynik = (pow((RS/Ro), -0.82) - 0.65) * PomiarTemp * napieciePomiarowe;
+      wynik = tvoc;
       break;
     case 1:
       break;
@@ -610,23 +609,16 @@ float pomiar(int idPomiaru) {
   return wynik;
 }
 
-// Funkcja pomiaru baterii i sprawdzająca czy bateria jest za słaba
-
 void pomiarB(){
-  if (digitalRead(BATERIA) == HIGH){
+  if (digitalRead(BATTERY_CHARGE) == HIGH){
     if (bateriaDelay == 5){
+      bateriaDelay = 0;
       switch (stanBaterii){
         case 5:
-          pomiarBaterii = (pomiarNapieciaBaterii() - 760) / 11;
-          if (stanTemp < pomiarBaterii){
-             stanTemp = pomiarBaterii;
-          }
-          bateriaDelay = 0;
-          stanBaterii = stanTemp;
+          stanBaterii = 0;
           break;
         default:
           stanBaterii++;
-          bateriaDelay = 0;
           break;
       }
     } else{
@@ -634,12 +626,21 @@ void pomiarB(){
     }
   } else{
     stanTemp = 0;
-    pomiarBaterii = (pomiarNapieciaBaterii() - 745) / 11;
+    pomiarBaterii = (pomiarNapieciaBaterii() - 900) / 18;
     if (pomiarBaterii < stanBaterii){
-      stanBaterii = pomiarBaterii;
+      stanCount++;
+      if (stanCount = 5){
+        stanBaterii = pomiarBaterii;
+        stanCount = 0;
+      }
+    } else{
+      stanCount = 0;
     }
     if (stanBaterii < 0){
-    wylaczanie();
+      wylaczanie(1);
+    }
+    if (stanBaterii > 5){
+      stanBaterii = 5;
     }
   }
   return;
@@ -652,105 +653,159 @@ void pomiarB(){
 // Rysowanie wstepnych logotypow przy bootowaniu
 
 void rysunekWstep(int wybor){
-  u8g2.firstPage();
-  do {
-    switch (wybor){
+  u8g2_L.clearBuffer();
+  switch (wybor){
       case 0:
-        u8g2.drawXBMP(34, 2, logo60,  logo60, NOTlogo);
+        u8g2_L.drawXBMP(34, 2, logo60,  logo60, NOTlogo);
         break;
 
       case 1:
-        u8g2.drawXBMP(29, 8, exW, exH, exLogo);
+        u8g2_L.drawXBMP(29, 8, exW, exH, exLogo);
         break;
 
       case 2:
-        u8g2.drawXBMP(34, 2, logo60, logo60, ElektronikLogo);
+        u8g2_L.drawXBMP(34, 2, logo60, logo60, ElektronikLogo);
         break;
 
       case 3:
-        u8g2.drawXBMP(36, 4, OPDProz, OPDProz, OPDP);
+        u8g2_L.drawXBMP(36, 4, OPDProz, OPDProz, OPDP);
         break;
         
       case 4:
-          u8g2.drawXBMP(36, 2, meatCheckW, meatCheckH, meatCheckLogo);
-          u8g2.drawStr(30,62,"MeatChech+");
+          u8g2_L.drawXBMP(36, 2, meatCheckW, meatCheckH, meatCheckLogo);
+          u8g2_L.drawStr(30,62,"MeatChech+");
           break;
-    }
-  } while ( u8g2.nextPage() );
+
+  }
+  u8g2_L.sendBuffer();
 }
 
 // Rysowanie oczekiwania na rozgrzanie czujnika i przygotowanie do pomiarów
 
-#define RSwstep 90
-
 void przygotowanie(){
-  int temp = (pomiar(0)*100);
-  int przyg = (pomiar(0)*100);
-  int progressbartemp = 0;
-  while (true){
-    int progressbar = map((RSwstep-przyg), RSwstep-temp, 0, 1, 100);
-    if (progressbartemp < progressbar){
-      progressbartemp = progressbar;
-    }
-    if (przyg > temp){
-      temp = przyg;
-    }
-    u8g2.firstPage();
-    do {
-      u8g2.drawFrame(14,32,100,10);
-      u8g2.drawBox(14,32,progressbartemp, 10);
-      u8g2.drawButtonUTF8(63, 20, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Trwa przygotowanie" );
-      
-    } while( u8g2.nextPage() );
-  if (przyg < RSwstep){
-    break;
-  }
-  przyg = pomiar(0)*100;
+  int number = 0;
+  while (number <= 100){
+    number++;
+    u8g2_L.clearBuffer();
+    u8g2_L.drawFrame(14,32,100,10);
+    u8g2_L.drawBox(14,32,number, 10);
+    u8g2_L.drawButtonUTF8(63, 20, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Trwa rozgrzewanie" );
+    u8g2_L.sendBuffer();
+    delay(12);
   }
   return;
 }
 
+void rysunekGorny(int tryb){
+  pomiarB();
+  u8g2_S.clearBuffer();
+
+  switch(tryb){
+    case 0:
+      u8g2_S.setDrawColor(1); 
+      u8g2_S.drawXBMP(95, 7, bateriaW, bateriaH, bateria);
+      for (int temp = 0; temp < stanBaterii; temp++){
+          u8g2_S.drawBox((101 + temp*4), 10, 2, 12); 
+      }
+
+      // Inne dane
+
+      
+      break;
+      
+    case 1:
+      u8g2_S.setFont(u8g2_font_Pixellari_tf);  
+      u8g2_S.drawFrame(19,0,92,15);
+      
+      u8g2_S.setDrawColor(1); 
+      int dlugosc = map(v, minVal, maxVal, 0, 90);
+      int procent = map(v, minVal, maxVal, 0, 100);
+      u8g2_S.drawBox(20,0,dlugosc,15);
+      u8g2_S.drawXBMP(0, 1, ikona12, ikona12, mieso);
+      u8g2_S.drawXBMP(116, 1, ikona12, ikona12, mucha);
+      u8g2_S.drawButtonUTF8(63, 32, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, String(String(procent) + "%").c_str() );
+      u8g2_S.setFont(u8g2_font_bitcasual_t_all);  
+      break;
+  }
+  u8g2_S.sendBuffer();
+  
+}
+
+
 // Rysunek menu
 
 void rysunekMenu() {
-   pomiarB();
-   u8g2.firstPage();
-      do {
-        u8g2.setDrawColor(1); 
-        u8g2.drawXBMP(113, 1, bateriaW, bateriaH, bateria);
-        u8g2.drawLine(0, 10, 128, 10);
-        for (int temp = 0; temp < stanBaterii; temp++){
-          u8g2.drawLine((116 + temp*2), 3, (116 + temp*2), 4); 
-        }
-        u8g2.drawButtonUTF8(63, 45, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, printStringow(menuPozycja));
-        u8g2.drawButtonUTF8(63, 28, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, printNazwyMenu(indeks));
-        if (indeks != 0){
-          u8g2.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
-        }
-        u8g2.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
-        int kropkiMenu = 63 - (menuRozmiar - 1) * 3;
-        int pozycjaMenu = menuPozycja - menuIndeks;
-        for (int temp = 0; temp < menuRozmiar; temp++){
-          u8g2.drawDisc(kropkiMenu,60,1, U8G2_DRAW_ALL );
-          if (pozycjaMenu == temp){
-            u8g2.drawDisc(kropkiMenu,60,2, U8G2_DRAW_ALL );
-           }
-          kropkiMenu = kropkiMenu + 6;
-        }
-    } while( u8g2.nextPage() );
+    rysunekGorny(0);
+    u8g2_L.clearBuffer();
+    u8g2_L.drawButtonUTF8(63, 38, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, printStringow(menuPozycja));
+    u8g2_L.drawButtonUTF8(63, 20, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, printNazwyMenu(indeks));
+    if (indeks != 0){
+      u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
+    }
+    u8g2_L.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
+    int kropkiMenu = 63 - (menuRozmiar - 1) * 3;
+    int pozycjaMenu = menuPozycja - menuIndeks;
+    for (int temp = 0; temp < menuRozmiar; temp++){
+      u8g2_L.drawDisc(kropkiMenu,60,1, U8G2_DRAW_ALL );
+      if (pozycjaMenu == temp){
+        u8g2_L.drawDisc(kropkiMenu,60,2, U8G2_DRAW_ALL );
+       }
+      kropkiMenu = kropkiMenu + 6;
+    }
+    u8g2_L.sendBuffer();
 }
 
 // Logika dla pomiarów nie na żywo DO IMPLEMENTACJI
 
-int skryptPomiaru(){
-  
+int skryptPomiaru(int id_pomiaru){
+
+  switch(id_pomiaru){
+    case 1:
+        break;
+    case 2:
+        break;
+    case 3:
+        break;
+    case 4:
+        break;
+    case 5:
+        break;
+    case 6:
+        break;
+    case 7:
+        break;
+    case 8:
+        break;
+    case 9:
+        break;
+    case 10:
+        break;
+    case 11:
+        break;
+    case 12:
+        break;
+    case 13:
+        break;
+    case 14:
+        break;
+    case 15:
+        break;
+    case 16:
+        break;
+    case 17:
+        break;
+    case 18:
+        break;
+    case 19:
+        break;
+  }
 }
 
 // Stringi do rysunku pomiaru
 
 String tekstPomiaru(float dane, float minV, float maxV){
   float rozmiar = maxV - minV;
-  int testPomiarowy = (dane - minV) / rozmiar * 2.5 - 0.2;
+  int testPomiarowy = (dane - minV) / rozmiar * 2.65 - 0.35;
   switch (testPomiarowy){
     case 0:
       return "Produkt świeży";
@@ -765,106 +820,133 @@ String tekstPomiaru(float dane, float minV, float maxV){
 
 // Rysowanie miernika lub innych funkcji menu
 
-void rysunek(byte rysID) {
-      switch (rysID){
-        case 0:
-          v = pomiar(0);
-          minVal = 0.65;
-          maxVal = 3.4;
-          if (v < minVal){
-             v = minVal;
-          }  
-          if (v > maxVal){
-             v = maxVal;
-          }
-          punkt = ((v-minVal) * 3.144 / (maxVal-minVal) - 1.572);
-          xp = 63+(sin(punkt) * 15);
-          yp = 63-(cos(punkt) * 15);
-          break;
+void rysunekWylacznika(){
+  rysunekGorny(0);
+  if (digitalRead(RIGHT_B) == LOW or digitalRead(LEFT_B) == LOW){
+      wylacznik = !wylacznik;
+      while (digitalRead(RIGHT_B) == LOW or digitalRead(LEFT_B) == LOW){}
+      delay(30);
+  }
+  u8g2_L.clearBuffer();
+  u8g2_L.drawButtonUTF8(64, 16, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Czy na pewno" );
+  u8g2_L.drawButtonUTF8(64, 28, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "chcesz wyłączyć" );
+  u8g2_L.drawButtonUTF8(64, 40, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "urządznie?" );
+  u8g2_L.drawButtonUTF8(38, 61, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Nie" );
+  u8g2_L.drawButtonUTF8(88, 61, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Tak" );
+  u8g2_L.drawFrame(23 + wylacznik*49, 51, 29 + wylacznik*2, 13);
+  u8g2_L.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
+  u8g2_L.sendBuffer();
+}
 
-        case 1:
-          if (digitalRead(PRAWO) == HIGH or digitalRead(LEWO) == HIGH){
-            wylacznik = !wylacznik;
-            while (digitalRead(PRAWO) == HIGH or digitalRead(LEWO) == HIGH){}
-            delay(30);
-          }
-          break;
-      }
-
-      pomiarB();
+void rysunekPomiaru() {
+  pomiarB();
+  v = pomiar();
+  if (v < minVal){
+     v = minVal;
+  }   
+  else if (v > maxVal){
+     v = maxVal;
+  }
+  
+  rysunekGorny(1);    
       
-      u8g2.firstPage();
-      do { 
-        u8g2.setDrawColor(1);
-        u8g2.drawXBMP(113, 1, bateriaW, bateriaH, bateria);
-        u8g2.drawLine(0, 10, 128, 10);
-        for (int temp = 0; temp < stanBaterii ; temp++){
-          u8g2.drawLine(116 + temp*2, 3, 116 + temp*2, 4); 
-        }
-        u8g2.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
-        switch (rysID){
-          case 0:
-            u8g2.drawDisc(63,63,23, U8G2_DRAW_UPPER_LEFT|U8G2_DRAW_UPPER_RIGHT );
-            u8g2.setDrawColor(0);
-            u8g2.drawDisc(63,63,21, U8G2_DRAW_UPPER_LEFT|U8G2_DRAW_UPPER_RIGHT );
-            u8g2.setDrawColor(1);
-            u8g2.drawLine(63,63,xp,yp);
-            u8g2.drawXBMP(25, 52, ikona12, ikona12, mieso);
-            u8g2.drawXBMP(89, 52, ikona12, ikona12, mucha);
-            u8g2.drawButtonUTF8(64, 23, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Stan świeżości:" );
-            u8g2.drawButtonUTF8(64, 36, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, tekstPomiaru(v, minVal, maxVal).c_str() );
-            break;
-          
-          case 1:
-            u8g2.drawButtonUTF8(64, 22, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Czy na pewno" );
-            u8g2.drawButtonUTF8(64, 34, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "chcesz wyłączyć" );
-            u8g2.drawButtonUTF8(64, 46, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "urządznie?" );
-            u8g2.drawButtonUTF8(38, 61, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Nie" );
-            u8g2.drawButtonUTF8(88, 61, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Tak" );
-            u8g2.drawFrame(23 + wylacznik*49, 51, 29 + wylacznik*2, 13);
-            u8g2.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
-            break;
+  u8g2_L.clearBuffer();
+  u8g2_L.setDrawColor(1);
+  u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
+  u8g2_L.drawButtonUTF8(64, 16, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Tryb pomiaru:" );
+  u8g2_L.drawButtonUTF8(64, 30, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, nazwaPomiaru.c_str() );
+  u8g2_L.drawButtonUTF8(64, 48, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, tekstPomiaru(v, minVal, maxVal).c_str() );
+  
+  u8g2_L.sendBuffer();  
 
-          case 2:
-            break;
-        }
-
-        
-      } while( u8g2.nextPage() );  
 }
 
 // Funkcja wyłączająca urządzenie
 
-void wylaczanie(){
-  while (true){
-     u8g2.firstPage();
-      do { 
-         u8g2.drawButtonUTF8(63, 46, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Do implementacji" );
-      } while( u8g2.nextPage() );  
+void wylaczanie(int wyl_id){
+  u8g2_S.clearBuffer();
+  u8g2_S.sendBuffer();
+  u8g2_L.clearBuffer();
+  
+  switch (wyl_id){
+    case 0:
+      u8g2_L.drawButtonUTF8(64, 32, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Wyłączanie..." );
+      break;
+    case 1:
+      u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Bateria" );
+      u8g2_L.drawButtonUTF8(64, 38, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "rozładowana" );
+      break;
+    
   }
+  
+  u8g2_L.sendBuffer();
+  delay(1500);
+  u8g2_L.clearBuffer();
+  u8g2_L.sendBuffer();
+  digitalWrite(BATTERY, HIGH);
+  while(true){
+    delay(5);
+  }  
 }
 
+
 void setup() {
+  // Aktywacja BSM
   pomiarB();
-  u8g2.begin();
-  u8g2.setDrawColor(1);
-  u8g2.setFont(u8g2_font_bitcasual_t_all);
-  temperatura(10,1);
+  pinMode(BATTERY, OUTPUT);
+  digitalWrite(BATTERY, LOW);
+  if (stanBaterii < 0){
+     wylaczanie(1);
+  }
+
+  pinMode(BATTERY_CHARGE, INPUT); 
+
+  // Inicjacja urządzeń
+  
+  u8g2_L.setI2CAddress(0x7A);
+  u8g2_S.setI2CAddress(0x78);                         
+  u8g2_L.begin();
+  u8g2_L.setDrawColor(1);
+  u8g2_L.setFont(u8g2_font_bitcasual_t_all);
+  u8g2_S.begin();
+  u8g2_S.setDrawColor(1);
+  u8g2_S.setFont(u8g2_font_bitcasual_t_all);  
+  bmp280.begin(); 
+  sgp.begin();
+
+  // Inicjacja przycisków
+  
+  pinMode(RIGHT_B, INPUT_PULLUP);
+  pinMode(LEFT_B, INPUT_PULLUP);
+  pinMode(OK_B, INPUT_PULLUP);
+  pinMode(CANCEL_B, INPUT_PULLUP);
+
+  // Rysunki
+
+  u8g2_S.clearBuffer();
+  u8g2_S.drawButtonUTF8(64, 12, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Mateusz Bojarski" );
+  u8g2_S.sendBuffer();
+
   for (byte i = 0; i < 5; i++){
     rysunekWstep(i);
-    delay(500 + (int(i/4) *1000));
-  }
-  if (int(pomiar(0)*100) >= RSwstep){    
-    przygotowanie();
-  }
+    delay(750 + (int(i/4) *500));
+  }    
+   przygotowanie();
    menuPozycja = 0;
    menuIndeks = indeksy[0];
    menuRozmiar = rozmiary[0];
 }
 
+
 void loop() {
+  bool pinLogic;
   if (inputDelay != 0){
-    if (digitalRead(inputDelay) == LOW){
+    if (inputDelay == CANCEL_B){
+      pinLogic = 0;
+    } else{
+      pinLogic = 1;
+    }
+    if (digitalRead(inputDelay) == pinLogic){
       inputDelay = 0;
       delay(10);
     }
@@ -880,4 +962,5 @@ void loop() {
     }
   }
   rysunekMenu();
+  delay(1);
 }
