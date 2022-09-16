@@ -27,9 +27,7 @@ Adafruit_SGP30 sgp; // I2C 0x??
 float temperature, pressure, altitude; // BSP280
 int tvoc, eCO2; // SGP30
 int battery_voltage; // Do BMS
-int wynik;
 
-byte idPomiaru = 0;
 
 int stanBaterii = 5;
 byte bateriaDelay = 0;
@@ -39,7 +37,6 @@ int stanCount = 0;
 
 // Zmienne wyświetlacza
 float minVal, maxVal, v;
-float punkt;
 String nazwaPomiaru;
 
 // Rozmiary dla obrazków
@@ -279,19 +276,19 @@ const char menu2_1_3[] PROGMEM = "Szynka wędzona";
 const char menu2_1_4[] PROGMEM = "Mielonka tyrolska";
 
 const char menu2_2_1[] PROGMEM = "Filet";
-const char menu2_2_2[] PROGMEM = "Wątróbka";
+const char menu2_2_2[] PROGMEM = "Serca";
 const char menu2_2_3[] PROGMEM = "Udka, podudzia itp.";
 
 const char menu2_3_1[] PROGMEM = "Karkówka";
 const char menu2_3_2[] PROGMEM = "Polędwica";
 const char menu2_3_3[] PROGMEM = "Podroby wołowe";
-const char menu2_3_4[] PROGMEM = "Inne";
+const char menu2_3_4[] PROGMEM = "Inne wołowe";
 
 const char menu2_4_1[] PROGMEM = "Schab";
 const char menu2_4_2[] PROGMEM = "Boczek";
 const char menu2_4_3[] PROGMEM = "Szynka";
 const char menu2_4_4[] PROGMEM = "Łopatka";
-const char menu2_4_5[] PROGMEM = "Inne";
+const char menu2_4_5[] PROGMEM = "Inne wieprzowe";
 
 const char menu2_5_1[] PROGMEM = "Ryba słodka";
 const char menu2_5_2[] PROGMEM = "Ryba słona";
@@ -462,7 +459,7 @@ void aktywacjaSkryptu(int id){
       maxVal = 1050;
       nazwaPomiaru = "Na żywo";
       while (digitalRead(CANCEL_B) == LOW){
-        rysunekPomiaru();
+        rysunekPomiaru(0);
       }
       delay(50);
       break;        
@@ -504,42 +501,61 @@ void aktywacjaSkryptu(int id){
       nawigacjaSubmenu(6);
       break;
     case 9:
-       break;
+      pomiarInitVars(1);
+      break;
     case 10:
-      break;      
+      pomiarInitVars(2);
+      break;  
     case 11:
-      break;
+      pomiarInitVars(3);
+      break;      
     case 12:
-      break;
+      pomiarInitVars(4);
+      break;      
     case 13:
-      break;
+      pomiarInitVars(5);
+      break;      
     case 14:
-      break;
+      pomiarInitVars(6);
+      break;      
     case 15:
-      break;
+      pomiarInitVars(7);
+      break;      
     case 16:
+      pomiarInitVars(8);
       break;
     case 17:
+      pomiarInitVars(9);
       break;
     case 18:
+      pomiarInitVars(10);
       break;    
     case 19:
+      pomiarInitVars(11);
       break;
     case 20:
+      pomiarInitVars(12);
       break;      
     case 21:
+      pomiarInitVars(13);    
       break;
     case 22:
+      pomiarInitVars(14);
       break;
     case 23:
+      pomiarInitVars(15);
       break;
     case 24:
+      pomiarInitVars(16);
       break;
     case 25:
+      pomiarInitVars(17);
       break;
     case 26:
+      pomiarInitVars(18);
       break;
     case 27:
+      pomiarInitVars(19);
       break;
     case 28:
       break;  
@@ -587,21 +603,12 @@ void temperatura(){
   return;
 }
 
-
-
 int pomiar() {
   temperatura();
   sgp.IAQmeasure();
   tvoc =  sgp.TVOC;
   eCO2 = sgp.eCO2;
-  switch (idPomiaru){
-    case 0:
-      wynik = tvoc;
-      break;
-    case 1:
-      break;
-  }
-  return wynik;
+  return tvoc;
 }
 
 void pomiarB(){
@@ -642,6 +649,107 @@ void pomiarB(){
   
 }
 
+void pomiarInitVars(int pomID){
+  switch pomID{
+    case 1:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Szynka gotowana";
+      break;
+    case 2:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Szynka konserwowa";
+      break;      
+    case 3:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Szynka wędzona";
+      break;      
+    case 4:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Mielonka tyrolska";
+      break;      
+    case 5:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Filet";
+      break;      
+    case 6:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Serca";
+      break;      
+    case 7:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Udka, podudzia itp.";
+      break;
+    case 8:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Karkówka";
+      break;
+    case 9:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Polędwica";
+      break;
+    case 10:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Podroby wołowe";
+      break;
+    case 11:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Inne wołowe";
+      break;
+    case 12:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Schab";
+      break;
+    case 13:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Boczek";
+      break;
+    case 14:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Szynka";
+      break;
+    case 15:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Łopatka";
+      break;
+    case 16:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Inne wieprzowe";
+      break;
+    case 17:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Ryba słodka";
+      break;
+    case 18:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Ryba słona";
+      break;
+    case 19:
+      minVal = 50;
+      maxVal = 350;
+      nazwaPomiaru = "Ryba marynowana";
+      break;
+
+  }
+  
+}
 
 // RYSOWANIE
 
@@ -692,22 +800,47 @@ void przygotowanie(){
   return;
 }
 
+// Rysunek elementów menu
+
+void uiDraw(int menuID){
+  u8g2_L.drawXBMP(113, 1, bateriaW, bateriaH, bateria);
+  u8g2_L.drawLine(0, 10, 128, 10);
+  for (int temp = 0; temp < stanBaterii; temp++){
+      u8g2_L.drawLine((116 + temp*2), 3, (116 + temp*2), 4); 
+  }
+  switch(menuID){
+    case 1:
+      u8g2_L.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
+      break;
+      
+    case 2:
+      u8g2_L.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
+      u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
+      break;
+
+    case 3:
+      u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
+      break;
+
+    default:
+
+      break;
+  
+  }
+}
 
 // Rysunek menu
 
 void rysunekMenu() {
     u8g2_L.clearBuffer();
-    u8g2_L.drawXBMP(113, 1, bateriaW, bateriaH, bateria);
-    u8g2_L.drawLine(0, 10, 128, 10);
-        for (int temp = 0; temp < stanBaterii; temp++){
-          u8g2_L.drawLine((116 + temp*2), 3, (116 + temp*2), 4); 
+    if (indeks != 0){
+      uiDraw(2);
+    }
+    else{
+      uiDraw(1);
     }
     u8g2_L.drawButtonUTF8(63, 45, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, printStringow(menuPozycja));
     u8g2_L.drawButtonUTF8(63, 28, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, printNazwyMenu(indeks));
-    if (indeks != 0){
-      u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
-    }
-    u8g2_L.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
     int kropkiMenu = 63 - (menuRozmiar - 1) * 3;
     int pozycjaMenu = menuPozycja - menuIndeks;
     for (int temp = 0; temp < menuRozmiar; temp++){
@@ -720,51 +853,6 @@ void rysunekMenu() {
     u8g2_L.sendBuffer();
 }
 
-// Logika dla pomiarów nie na żywo DO IMPLEMENTACJI
-
-int skryptPomiaru(int id_pomiaru){
-
-  switch(id_pomiaru){
-    case 1:
-        break;
-    case 2:
-        break;
-    case 3:
-        break;
-    case 4:
-        break;
-    case 5:
-        break;
-    case 6:
-        break;
-    case 7:
-        break;
-    case 8:
-        break;
-    case 9:
-        break;
-    case 10:
-        break;
-    case 11:
-        break;
-    case 12:
-        break;
-    case 13:
-        break;
-    case 14:
-        break;
-    case 15:
-        break;
-    case 16:
-        break;
-    case 17:
-        break;
-    case 18:
-        break;
-    case 19:
-        break;
-  }
-}
 
 // Stringi do rysunku pomiaru
 
@@ -785,6 +873,23 @@ String tekstPomiaru(float dane, float minV, float maxV){
 
 // Rysowanie miernika lub innych funkcji menu
 
+void pomiarInit(){
+  while (digitalRead(CANCEL_B) == LOW){
+          
+  }
+  u8g2_L.clearBuffer();
+  u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, ");
+  u8g2_L.drawFrame(14,42,102,9);
+  int procent = map(v, minVal, maxVal, 0, 100);
+
+  u8g2_L.drawBox(15,42,procent,9);
+
+  u8g2_L.drawButtonUTF8(63, 64, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, String(String(procent) + "%").c_str() );
+  u8g2_L.sendBuffer();  
+  
+
+}
+  
 void rysunekWylacznika(){
   if (digitalRead(RIGHT_B) == LOW or digitalRead(LEFT_B) == LOW){
       wylacznik = !wylacznik;
@@ -792,26 +897,27 @@ void rysunekWylacznika(){
       delay(30);
   }
   u8g2_L.clearBuffer();
+  
   u8g2_L.drawButtonUTF8(64, 16, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Czy na pewno" );
   u8g2_L.drawButtonUTF8(64, 28, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "chcesz wyłączyć" );
   u8g2_L.drawButtonUTF8(64, 40, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "urządznie?" );
   u8g2_L.drawButtonUTF8(38, 61, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Nie" );
   u8g2_L.drawButtonUTF8(88, 61, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Tak" );
   u8g2_L.drawFrame(23 + wylacznik*49, 51, 29 + wylacznik*2, 13);
-  u8g2_L.drawXBMP(118, 57, navIkonaW, navIkonaH, navOK);
   u8g2_L.sendBuffer();
 }
 
-void rysunekPomiaru() {
+void rysunekPomiaru(int idPom) {
   pomiarB();
-  v = pomiar();
+  if (idPom == 0){
+    v = pomiar();
+  }
   if (v < minVal){
      v = minVal;
   }   
   else if (v > maxVal){
      v = maxVal;
-  }
-      
+  }   
   u8g2_L.clearBuffer();
   u8g2_L.setDrawColor(1);
   u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
@@ -819,11 +925,6 @@ void rysunekPomiaru() {
   u8g2_L.drawButtonUTF8(64, 37, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, tekstPomiaru(v, minVal, maxVal).c_str() );
   u8g2_L.drawFrame(14,42,102,9);
   int procent = map(v, minVal, maxVal, 0, 100);
-  u8g2_L.drawXBMP(113, 1, bateriaW, bateriaH, bateria);
-  u8g2_L.drawLine(0, 10, 128, 10);
-  for (int temp = 0; temp < stanBaterii; temp++){
-     u8g2_L.drawLine((116 + temp*2), 3, (116 + temp*2), 4); 
-  }
   u8g2_L.drawBox(15,42,procent,9);
   u8g2_L.drawXBMP(18, 52, ikona12, ikona12, mieso);
   u8g2_L.drawXBMP(98, 52, ikona12, ikona12, mucha);
