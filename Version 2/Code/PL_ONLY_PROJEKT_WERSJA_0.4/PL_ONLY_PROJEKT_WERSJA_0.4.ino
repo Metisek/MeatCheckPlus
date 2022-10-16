@@ -21,7 +21,7 @@ const int analogInPin = A0;
 // Kontruktor obiektów
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_L(U8G2_R2); // I2C 0x3D
 BMP280_DEV bmp280; // I2C 0x77                                
-Adafruit_SGP30 sgp; // I2C 0x??
+Adafruit_SGP30 sgp; // I2C 0x58
 
 // Zmienne pomiarowe
 float temperature, pressure, altitude; // BSP280
@@ -456,7 +456,7 @@ void aktywacjaSkryptu(int id){
   switch(id){
     case 0:
       minVal = 50;
-      maxVal = 1050;
+      maxVal = 550;
       nazwaPomiaru = "Na żywo";
       while (digitalRead(CANCEL_B) == LOW){
         rysunekPomiaru(0);
@@ -502,60 +502,117 @@ void aktywacjaSkryptu(int id){
       break;
     case 9:
       pomiarInitVars(1);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }
       break;
     case 10:
       pomiarInitVars(2);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }
       break;  
     case 11:
       pomiarInitVars(3);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }
       break;      
     case 12:
       pomiarInitVars(4);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }
       break;      
     case 13:
       pomiarInitVars(5);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }
       break;      
     case 14:
       pomiarInitVars(6);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;      
     case 15:
       pomiarInitVars(7);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;      
     case 16:
       pomiarInitVars(8);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 17:
       pomiarInitVars(9);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 18:
       pomiarInitVars(10);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;    
     case 19:
       pomiarInitVars(11);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 20:
       pomiarInitVars(12);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;      
     case 21:
       pomiarInitVars(13);    
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 22:
       pomiarInitVars(14);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 23:
       pomiarInitVars(15);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 24:
       pomiarInitVars(16);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 25:
       pomiarInitVars(17);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 26:
       pomiarInitVars(18);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 27:
       pomiarInitVars(19);
+      if (pomiarInit() == true){
+        rysunekWyjsciowy(pomiarStart());
+      }      
       break;
     case 28:
       break;  
@@ -582,6 +639,7 @@ void aktywacjaSkryptu(int id){
           
         }
       }
+      inputDelay = CANCEL_B;
       break;
   }
 }
@@ -650,7 +708,7 @@ void pomiarB(){
 }
 
 void pomiarInitVars(int pomID){
-  switch pomID{
+  switch (pomID){
     case 1:
       minVal = 50;
       maxVal = 350;
@@ -748,8 +806,215 @@ void pomiarInitVars(int pomID){
       break;
 
   }
+  return;
   
 }
+
+bool pomiarInit(){
+  bool exitPom = false;
+  inputDelay = OK_B;
+  while(pomiar() > 100){
+    pomiarB();
+    u8g2_L.clearBuffer();
+    uiDraw(3);
+    u8g2_L.drawButtonUTF8(63, 24, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Oddal czujnik od" );
+    u8g2_L.drawButtonUTF8(63, 36, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "badanego produktu." );
+    u8g2_L.sendBuffer();
+    if (digitalRead(CANCEL_B) == HIGH){
+      exitPom = true;
+      break;
+    }
+    delay(1);
+  }
+  while(exitPom == false){
+    pomiarB();
+    if(digitalRead(inputDelay) == HIGH){
+      inputDelay = 0;
+    }
+    u8g2_L.clearBuffer();
+    uiDraw(2);
+    u8g2_L.drawButtonUTF8(63, 24, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Przyłóż czujnik do" );
+    u8g2_L.drawButtonUTF8(63, 36, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "badanego produktu" );
+    u8g2_L.drawButtonUTF8(63, 48, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "i wciśnij \"OK\"" );
+    u8g2_L.sendBuffer();    
+    if (digitalRead(CANCEL_B) == HIGH){
+      exitPom = true;
+      inputDelay = CANCEL_B;
+      break;
+    }
+    if(inputDelay != OK_B){
+      if (digitalRead(OK_B) == LOW){
+        inputDelay = OK_B;
+        break;
+      }  
+    }
+    delay(1);
+  }
+
+  return(!exitPom);
+}
+
+int pomiarStart(){
+  bool exitPom = false;
+  int progress = 0;
+  int pCount = 0;
+  byte pomiarCount;
+  int pomiarInt;
+  int pomiarTemp;
+  int wynik = 0;
+  int temp;
+  while(true){
+    pomiarB();
+    u8g2_L.clearBuffer();
+    uiDraw(3);
+    u8g2_L.drawButtonUTF8(63, 30 , U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Trwa pomiar" );
+    u8g2_L.drawFrame(14,42,102,9);
+    u8g2_L.drawBox(15,42,progress*10,9);
+    u8g2_L.sendBuffer();
+    if (progress >= 10){
+      break;
+    }
+    switch(progress){
+        case 0:
+          temp = 0;
+          for(int i = 0; i < 5005; i++){
+              delay(1);
+              if (temp == 500){
+                pomiarInt = pomiar();
+                temp = 0;
+                if (pomiarInt > 2500){
+                  return(-2);
+                }
+                else if(pomiarInt > minVal){
+                  progress++;
+                  break;  
+                }
+              } else{
+                temp++;
+              }
+              if (digitalRead(CANCEL_B) == HIGH){
+                exitPom = true;
+                inputDelay = CANCEL_B;
+                break;
+              }
+          }
+          if (progress > 0){
+            break;
+          }
+          else if (exitPom == 1){
+            return(0);
+          }
+          else{
+            return(-1);
+          }
+          break;
+          
+        case 1:
+          temp = 0;
+          pomiarCount = 0;
+          while (true){
+            delay(1);
+            if (temp >= 70){
+              pomiarTemp = pomiar();
+              if (pomiarTemp < minVal){
+                pCount++;
+                if (pCount > 8){
+                  return(-3);
+                }
+              }
+              else if (pomiarTemp > 5000){
+                return(-2);
+              }
+              else if (abs(pomiarTemp-pomiarInt ) < (pomiarInt / 40 + 6)){
+                pCount = 0;
+                pomiarCount++;
+                if (pomiarCount > 40){
+                  progress++;
+                  break;  
+                }
+              }
+              else{
+                pomiarCount = 0;
+              }
+              pomiarInt  = pomiarTemp;
+              temp = 0;
+            }
+            if (digitalRead(CANCEL_B) == HIGH){
+                exitPom = true;
+                inputDelay = CANCEL_B;
+                break;
+            }
+            temp++;
+          }
+          if (progress > 1){
+            wynik += pomiarInt;
+            pCount = 1;
+            break;
+            
+          }
+          else if (exitPom == 1){
+            return(0);
+          }
+          break;
+
+        default:
+          temp = 0;
+          int pomiarRange = (pomiarInt /100 + (12-progress));
+          pomiarCount = 0;
+          byte pomiarStop = 0;
+          while (true){
+            delay(1);
+            if (temp >= 50){
+              pomiarTemp = pomiar();
+              if (abs(pomiarTemp-pomiarInt) < pomiarRange){
+                pomiarInt = pomiarTemp;
+                pomiarStop = 0;
+                pomiarCount++;
+                wynik += pomiarInt;
+                pCount++;
+                if (pomiarCount > 8){
+                  progress++;
+                  break;  
+                }
+              }
+              else if (pomiarTemp > 2500){
+                return(-2);
+              }
+              else{
+                pomiarStop++;
+                if (pomiarStop > 12){
+                  progress = 10;
+                  break;
+                }
+              }
+              temp = 0;
+              Serial.println(String(String(wynik)+" "+ String(pCount) +" "+ String(wynik/pCount)));
+            }
+            if (digitalRead(CANCEL_B) == HIGH){
+                exitPom = true;
+                inputDelay = CANCEL_B;
+                break;
+            }
+            temp++;
+          }
+          if (exitPom == 1){
+            return(0);
+          }
+          
+          break;            
+      }
+    delay(1);
+  }
+
+  wynik = (wynik / pCount);
+  return(wynik);
+}
+
+//0 - powrót do menu
+//-1 - nie wykryto mięsa
+//-2 - czujnik zeskanował alkohol
+//-3 - czujnik zabrano w trakcie pomiaru
+
 
 // RYSOWANIE
 
@@ -823,7 +1088,6 @@ void uiDraw(int menuID){
       break;
 
     default:
-
       break;
   
   }
@@ -872,23 +1136,6 @@ String tekstPomiaru(float dane, float minV, float maxV){
 }
 
 // Rysowanie miernika lub innych funkcji menu
-
-void pomiarInit(){
-  while (digitalRead(CANCEL_B) == LOW){
-          
-  }
-  u8g2_L.clearBuffer();
-  u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, ");
-  u8g2_L.drawFrame(14,42,102,9);
-  int procent = map(v, minVal, maxVal, 0, 100);
-
-  u8g2_L.drawBox(15,42,procent,9);
-
-  u8g2_L.drawButtonUTF8(63, 64, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, String(String(procent) + "%").c_str() );
-  u8g2_L.sendBuffer();  
-  
-
-}
   
 void rysunekWylacznika(){
   if (digitalRead(RIGHT_B) == LOW or digitalRead(LEFT_B) == LOW){
@@ -907,6 +1154,46 @@ void rysunekWylacznika(){
   u8g2_L.sendBuffer();
 }
 
+void rysunekWyjsciowy(int exitID){
+  u8g2_L.clearBuffer();
+  u8g2_L.setDrawColor(1);
+  uiDraw(3);
+  switch(exitID){
+    case -3:
+      u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Czujnik zabrano" );
+      u8g2_L.drawButtonUTF8(64, 38, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "w kluczowej fazie" );
+      u8g2_L.drawButtonUTF8(64, 50, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "pomiaru." );
+      break;
+    case -2:
+      u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Czujnik zeskanował" );
+      u8g2_L.drawButtonUTF8(64, 38, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "wysokie stężenie" );
+      u8g2_L.drawButtonUTF8(64, 50, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "alkoholu." );
+      break;
+    case -1:
+      u8g2_L.drawButtonUTF8(64, 32, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "Nie wykryto" );
+      u8g2_L.drawButtonUTF8(64, 44, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, "mięsa." );
+      break;
+    case 0:
+      return;
+    default:
+      u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, nazwaPomiaru.c_str() );
+      u8g2_L.drawButtonUTF8(64, 37, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, tekstPomiaru(exitID, minVal, maxVal).c_str() );
+      u8g2_L.drawFrame(14,42,102,9);
+      int procent = map(exitID, minVal, maxVal, 0, 100);
+      u8g2_L.drawBox(15,42,procent,9);
+      u8g2_L.drawXBMP(18, 52, ikona12, ikona12, mieso);
+      u8g2_L.drawXBMP(98, 52, ikona12, ikona12, mucha);
+      u8g2_L.drawButtonUTF8(63, 64, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, String(String(procent) + "%").c_str() );
+      break;
+  }
+  u8g2_L.sendBuffer();  
+  while (digitalRead(CANCEL_B) == LOW){
+    delay(1);
+  }
+  inputDelay = CANCEL_B;
+  return;
+}
+
 void rysunekPomiaru(int idPom) {
   pomiarB();
   if (idPom == 0){
@@ -920,7 +1207,7 @@ void rysunekPomiaru(int idPom) {
   }   
   u8g2_L.clearBuffer();
   u8g2_L.setDrawColor(1);
-  u8g2_L.drawXBMP(0, 57, navIkonaW, navIkonaH, navPowrot);
+  uiDraw(3);
   u8g2_L.drawButtonUTF8(64, 26, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, nazwaPomiaru.c_str() );
   u8g2_L.drawButtonUTF8(64, 37, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 0,  1,  1, tekstPomiaru(v, minVal, maxVal).c_str() );
   u8g2_L.drawFrame(14,42,102,9);
@@ -963,6 +1250,7 @@ void wylaczanie(int wyl_id){
 void setup() {
   // Aktywacja BSM
   pomiarB();
+  Serial.begin(115200);
   pinMode(BATTERY, OUTPUT);
   digitalWrite(BATTERY, LOW);
   if (stanBaterii < 0){
